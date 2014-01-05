@@ -17,12 +17,19 @@
 			if ($useredit)
 			{
 				$user = wp_get_current_user();
-				$has_permission = ($user->ID == $post->post_author);
+				$has_permission = ($user->ID && $user->ID == $post->post_author);
 				if ($has_permission)
 				{
 					// Upload image and add to media library
-					$upload_result = $this->upload_image();
-					if ($upload_result)
+					if ($this->image_received())
+					{
+						$proceed = $this->upload_image();
+					}
+					else
+					{
+						$proceed = TRUE;
+					}
+					if ($proceed)
 					{
 						// Get new content
 						$new_content = $data['fee_post_content'];
@@ -31,6 +38,7 @@
 						$config->set('HTML.Allowed', 'p,b,a[href],i');
 						$purifier = new HTMLPurifier($config);
 						$new_content = $purifier->purify($new_content);
+
 						// Create data array
 						$post_data = array(
 							'ID' => $post->ID,
@@ -58,10 +66,16 @@
 			}
 		}
 
+		private function image_received()
+		{
+			return isset($_FILES['fee_post_img']) && !empty($_FILES['fee_post_img']['name']);
+		}
+
 		/**
 		 * Uploads the image chosen in the front end form
 		 */
-		public function upload_image() {
+		private function upload_image()
+		{
 			// Have WP upload the file for us
 			$upload_result = wp_handle_upload($_FILES['fee_post_img'], array('test_form' => FALSE));
 			$upload_error = $upload_result['error'];
@@ -90,14 +104,34 @@
 					'post_status' => 'inherit'
 				);
 				$attach_id = wp_insert_attachment( $attachment, $filename, $this->post->ID );
-				// Include WP image file to provide wp_generate_attachment_metadata()
-				require_once( ABSPATH . 'wp-admin/includes/image.php' );
-				// Generate metadata (width/height etc) and also create any thumbnails/crops
-				$attach_data = wp_generate_attachment_metadata( $attach_id, $filename );
-				wp_update_attachment_metadata( $attach_id, $attach_data );
 
-				// Add image as featured image for the current post
-				update_post_meta($this->post->ID, '_thumbnail_id', $attach_id);
+				if ($attach_id)
+				{
+					// Include WP image file to provide wp_generate_attachment_metadata()
+					require_once( ABSPATH . 'wp-admin/includes/image.php' );
+					// Generate metadata (width/height etc) and also create any thumbnails/crops
+					$attach_data = wp_generate_attachment_metadata( $attach_id, $filename );
+					if ($attach_data)
+					{
+						if (wp_update_attachment_metadata( $attach_id, $attach_data ))
+						{
+							// Add image as featured image for the current post
+							return update_post_meta($this->post->ID, '_thumbnail_id', $attach_id);	
+						}
+						else
+						{
+							return FALSE;
+						}
+					}
+					else
+					{
+						return FALSE;
+					}
+				}
+				else
+				{
+					return FALSE;
+				}
 			}
 			
 		}
