@@ -32,17 +32,20 @@
 					if ($proceed)
 					{
 						// Get new content
+						$new_title = $data['fee_post_title'];
 						$new_content = $data['fee_post_content'];
 						// Use HTML purifier instance for XSS-prevention
 						$config = HTMLPurifier_Config::createDefault();
 						$config->set('HTML.Allowed', 'p,b,a[href],i');
 						$purifier = new HTMLPurifier($config);
+						$new_title = $purifier->purify($new_title);
 						$new_content = $purifier->purify($new_content);
 
 						// Create data array
 						$post_data = array(
 							'ID' => $post->ID,
-							'post_content' => $new_content
+							'post_title' => $new_title,
+							'post_content' => $new_content,
 						);
 						// Update post
 						$result = wp_update_post($post_data, TRUE);
